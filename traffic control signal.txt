@@ -1,0 +1,107 @@
+module tfc (
+    input wire clk,
+    input wire rst,        // Synchronous active-high reset
+    output reg [2:0] a_light,
+    output reg [2:0] b_light,
+    output reg [2:0] c_light
+);
+    // Light colors encoding
+    localparam RED    = 3'b100;
+    localparam YELLOW = 3'b010;
+    localparam GREEN  = 3'b001;
+
+    // States
+    localparam A_GREEN  = 3'd0;
+    localparam A_YELLOW = 3'd1;
+    localparam B_GREEN  = 3'd2;
+    localparam B_YELLOW = 3'd3;
+    localparam C_GREEN  = 3'd4;
+    localparam C_YELLOW = 3'd5;
+
+    reg [2:0] state, next_state;
+    reg [3:0] timer; // counts cycles for each state
+
+    // State register & timer
+    always @(posedge clk) begin
+        if (rst) begin
+            state <= A_GREEN;
+            timer <= 0;
+        end else begin
+            state <= next_state;
+            if (state == next_state)
+                timer <= timer + 1;
+            else
+                timer <= 0;
+        end
+    end
+
+    // Next state logic
+    always @(*) begin
+        case (state)
+            A_GREEN:  next_state = (timer == 5) ? A_YELLOW : A_GREEN;
+            A_YELLOW: next_state = (timer == 2) ? B_GREEN  : A_YELLOW;
+            B_GREEN:  next_state = (timer == 5) ? B_YELLOW : B_GREEN;
+            B_YELLOW: next_state = (timer == 2) ? C_GREEN  : B_YELLOW;
+            C_GREEN:  next_state = (timer == 5) ? C_YELLOW : C_GREEN;
+            C_YELLOW: next_state = (timer == 2) ? A_GREEN  : C_YELLOW;
+            default:  next_state = A_GREEN;
+        endcase
+    end
+
+    // Output logic
+    always @(*) begin
+        // Default all RED
+        a_light = RED;
+        b_light = RED;
+        c_light = RED;
+
+        case (state)
+            A_GREEN:  a_light = GREEN;
+            A_YELLOW: a_light = YELLOW;
+            B_GREEN:  b_light = GREEN;
+            B_YELLOW: b_light = YELLOW;
+            C_GREEN:  c_light = GREEN;
+            C_YELLOW: c_light = YELLOW;
+        endcase
+    end
+endmodule
+
+
+
+`timescale 1ns/1ps
+
+module tb_tfc;
+    reg clk;
+    reg rst;
+    wire [2:0] a_light, b_light, c_light;
+
+    // DUT
+    tfc uut (
+        .clk(clk),
+        .rst(rst),
+        .a_light(a_light),
+        .b_light(b_light),
+        .c_light(c_light)
+    );
+
+    // Clock generation
+    initial begin
+        clk = 0;
+        forever #5 clk = ~clk; // 10ns period
+    end
+
+    // Test sequence
+    initial begin
+        // Dump waves
+        $dumpfile("tfc_tb.vcd");
+        $dumpvars(0, tb_tfc);
+
+        // Reset sequence
+        rst = 1;
+        #20;   // Hold reset for 2 clock cycles
+        rst = 0;
+
+        // Run simulation for some time
+        #300 $finish;
+    end
+endmodule
